@@ -5,11 +5,14 @@ import {
   getDefaultOverlayMode,
   getDisplayMode,
   getAdjustSelection,
+  getGamingSubtitleSettings,
+  defaultGamingSubtitleSettings,
   getUiLocale,
   setUiLocale,
   UI_LOCALES,
   setDisplayMode,
   setDefaultOverlayMode,
+  setGamingSubtitleSettings,
 } from "./storage";
 
 afterEach(() => {
@@ -57,6 +60,26 @@ describe("storage defaults", () => {
   it("uses overlay when no display mode is saved", async () => {
     stubStorage({});
     await expect(getDisplayMode()).resolves.toBe("overlay");
+  });
+
+  it("keeps the normal live panel by default", async () => {
+    stubStorage({});
+    await expect(getGamingSubtitleSettings()).resolves.toEqual(defaultGamingSubtitleSettings);
+  });
+
+  it("bounds saved subtitle controls before applying them to the page", async () => {
+    stubStorage({ gamingSubtitles: { enabled: true, fontSize: 1000, bottom: -5, opacity: 0 } });
+    await expect(getGamingSubtitleSettings()).resolves.toMatchObject({
+      enabled: true, fontSize: 64, bottom: 0, opacity: 0.2,
+    });
+  });
+
+  it("saves the gaming subtitle preferences", async () => {
+    const set = vi.fn(async () => {});
+    vi.stubGlobal("browser", { storage: { local: { set } } });
+    const settings = { enabled: true, fontSize: 36, bottom: 12, opacity: 0.75 };
+    await setGamingSubtitleSettings(settings);
+    expect(set).toHaveBeenCalledWith({ gamingSubtitles: settings });
   });
 
   it.each(["panel", "overlay"] as const)(

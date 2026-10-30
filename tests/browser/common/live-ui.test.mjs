@@ -118,6 +118,48 @@ function overlaps(a, b) {
 }
 
 for (const [name, browserType] of Object.entries({ chromium, firefox })) {
+  test(`${name}: gaming subtitles show only the current Arabic translation`, async () => {
+    await withPage(browserType, name, { width: 800, height: 600 }, async (page) => {
+      await page.setContent('<body style="margin:0"></body>');
+      await page.addScriptTag({ type: "module", content: `${panelCode}
+        ${uiSetup}
+        window.panel = showLivePanel(container, { x: 100, y: 480, width: 600, height: 80 }, {
+          onPause() {}, onResume() {}, onSelectNewRegion() {}, onRetry() {}, onClose() {}, onTextScaleChange() {},
+        }, 1, { enabled: true, fontSize: 36, bottom: 12, opacity: 0.75 });
+      ` });
+      const subtitle = page.locator('.ocr-translate-gaming-subtitle');
+      await page.evaluate(() => window.panel.render({
+        status: 'running',
+        targetLang: 'ar',
+        lines: [
+          { original: 'First line', translation: 'السطر الأول', state: 'ready' },
+          { original: 'Second line', translation: 'السطر الثاني', state: 'ready' },
+        ],
+        line: { original: 'Second line', translation: 'السطر الثاني', state: 'ready' },
+      }));
+      assert.equal(await subtitle.textContent(), 'السطر الثاني');
+      assert.equal(await page.locator('.ocr-translate-live-topbar').isVisible(), false);
+      assert.equal(await page.locator('.ocr-translate-live-lines').isVisible(), false);
+      assert.equal(await page.locator('.ocr-translate-live-region').isVisible(), false);
+      assert.equal(await page.evaluate(() => window.panel.getMask()), undefined);
+      const style = await subtitle.evaluate((element) => {
+        const computed = getComputedStyle(element);
+        return { fontSize: computed.fontSize, opacity: computed.opacity, textAlign: computed.textAlign };
+      });
+      assert.deepEqual(style, { fontSize: '36px', opacity: '0.75', textAlign: 'center' });
+      const bounds = await subtitle.boundingBox();
+      assertNear(bounds.x + bounds.width / 2, 400);
+      await page.evaluate(() => window.panel.setCaptureHidden(true));
+      assert.equal(await subtitle.isVisible(), false);
+      await page.evaluate(() => window.panel.setCaptureHidden(false));
+      assert.equal(await subtitle.isVisible(), true);
+      await page.evaluate(() => window.panel.render({ status: 'running', lines: [], line: undefined }));
+      assert.equal(await subtitle.textContent(), '');
+      await page.evaluate(() => window.panel.setGamingSettings({ enabled: false, fontSize: 36, bottom: 12, opacity: 0.75 }));
+      assert.equal(await page.locator('.ocr-translate-live-topbar').isVisible(), true);
+    });
+  });
+
   test(`${name}: the live panel sits beside its region and shows each state`, async () => {
     await withPage(browserType, name, { width: 800, height: 600 }, async (page) => {
       await page.setContent(`<body style="margin:0"></body>`);

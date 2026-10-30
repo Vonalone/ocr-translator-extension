@@ -592,5 +592,23 @@
   },
   "errorDeepLUnreachable": {
     "message": "Не удалось подключиться к DeepL. Проверьте соединение и повторите попытку."
+  },
+  "gamingModeLabel": {
+    "message": "Режим живых субтитров"
+  },
+  "gamingModeNormal": {
+    "message": "Обычный режим"
+  },
+  "gamingModeGaming": {
+    "message": "Игровые субтитры"
+  },
+  "gamingFontSize": {
+    "message": "Размер шрифта"
+  },
+  "gamingPosition": {
+    "message": "Положение от нижнего края"
+  },
+  "gamingTransparency": {
+    "message": "Непрозрачность субтитров"
   }
 }

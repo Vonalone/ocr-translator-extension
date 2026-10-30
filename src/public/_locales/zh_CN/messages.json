@@ -592,5 +592,23 @@
   },
   "errorDeepLUnreachable": {
     "message": "无法连接到 DeepL。请检查网络连接后重试。"
+  },
+  "gamingModeLabel": {
+    "message": "实时字幕模式"
+  },
+  "gamingModeNormal": {
+    "message": "普通模式"
+  },
+  "gamingModeGaming": {
+    "message": "游戏字幕模式"
+  },
+  "gamingFontSize": {
+    "message": "字幕字号"
+  },
+  "gamingPosition": {
+    "message": "距底部位置"
+  },
+  "gamingTransparency": {
+    "message": "字幕不透明度"
   }
 }

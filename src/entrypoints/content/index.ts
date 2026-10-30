@@ -27,9 +27,11 @@ import {
   getDisplayMode,
   getAdjustSelection,
   getLiveTextScale,
+  getGamingSubtitleSettings,
   setLiveTextScale,
   type DisplayMode,
   type LiveTextScale,
+  type GamingSubtitleSettings,
 } from "@/shared/storage";
 import { createRequestId } from "@/shared/request-id";
 import { sendRequest } from "@/shared/runtime-messaging";
@@ -122,6 +124,7 @@ let live:
       session: LiveSession;
       panel: LivePanel;
       sessionId: string;
+      captureRequestId?: string;
       measureRegion: () => Rect;
       retarget: (rect: Rect) => void;
       stopWatching: () => void;
@@ -297,6 +300,15 @@ export default defineContentScript({
         withUi(() => void runLiveSelectionFlow());
         return undefined;
       }
+      if (isRuntimeMessage(message, "LIVE_CAPTURE_COMPLETE")) {
+        if (
+          live?.sessionId === message.sessionId &&
+          live.captureRequestId === message.requestId
+        ) {
+          live.panel.setCaptureHidden(false);
+        }
+        return undefined;
+      }
       if (isRuntimeMessage(message, "START_IMAGE_TRANSLATION")) {
         startImageTranslation(() => runImageFlow(message.imageUrl));
         return undefined;
@@ -439,9 +451,10 @@ async function runLiveSelectionFlow(): Promise<void> {
   startNavigationWatch(closePageUi);
   void sendRequest({ type: "PRELOAD_OCR" }).catch(() => {});
 
-  const [adjustSelection, textScale] = await Promise.all([
+  const [adjustSelection, textScale, gamingSettings] = await Promise.all([
     getAdjustSelection(),
     getLiveTextScale(),
+    getGamingSubtitleSettings(),
   ]);
   const selection =
     generation === selectionGeneration
@@ -456,11 +469,15 @@ async function runLiveSelectionFlow(): Promise<void> {
     return;
   }
   if (selection?.kind === "area") {
-    startLive(selection.rect, textScale);
+    startLive(selection.rect, textScale, gamingSettings);
   }
 }
 
-function startLive(rect: Rect, textScale: LiveTextScale): void {
+function startLive(
+  rect: Rect,
+  textScale: LiveTextScale,
+  gamingSettings: GamingSubtitleSettings,
+): void {
   if (!uiRoot) {
     return;
   }
@@ -490,6 +507,7 @@ function startLive(rect: Rect, textScale: LiveTextScale): void {
         void setLiveTextScale(scale).catch(() => {}),
     },
     textScale,
+    gamingSettings,
   );
   // Hit testing reports the panel as its shadow host.
   const shadow = uiRoot.getRootNode();
@@ -531,9 +549,18 @@ function startLive(rect: Rect, textScale: LiveTextScale): void {
     readFrame: async (requestId, minLineThickness) => {
       const read = await video?.read(requestId, minLineThickness);
       panel.setReadsScreen(!read);
-      return (
-        read ??
-        sendRequest<LiveFrameResponse>({
+      if (read) return read;
+      // The screenshot must not contain our subtitle when it overlaps the
+      // selected region. Hide it for the capture and restore it on completion.
+      const gamingCapture = panel.setCaptureHidden(true);
+      try {
+        if (gamingCapture) {
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          );
+          if (live?.sessionId === sessionId) live.captureRequestId = requestId;
+        }
+        return await sendRequest<LiveFrameResponse>({
           type: "LIVE_FRAME_REQUEST",
           requestId,
           sessionId,
@@ -542,8 +569,16 @@ function startLive(rect: Rect, textScale: LiveTextScale): void {
           viewport: viewport(),
           mask: panel.getMask(),
           minLineThickness,
-        })
-      );
+        });
+      } finally {
+        panel.setCaptureHidden(false);
+        if (
+          live?.sessionId === sessionId &&
+          live.captureRequestId === requestId
+        ) {
+          live.captureRequestId = undefined;
+        }
+      }
     },
     translate: (requestId, text, context) =>
       sendRequest<LiveTranslationResponse>({
@@ -569,6 +604,16 @@ function startLive(rect: Rect, textScale: LiveTextScale): void {
     }
   };
   document.addEventListener("visibilitychange", wakeWhenVisible);
+  const onGamingSettingsChanged = (
+    changes: Record<string, { newValue?: unknown }>,
+  ): void => {
+    if (changes.gamingSubtitles) {
+      void getGamingSubtitleSettings().then((next) =>
+        panel.setGamingSettings(next),
+      );
+    }
+  };
+  browser.storage.onChanged.addListener(onGamingSettingsChanged);
 
   live = {
     session,
@@ -585,6 +630,7 @@ function startLive(rect: Rect, textScale: LiveTextScale): void {
     },
     stopWatching: () => {
       document.removeEventListener("visibilitychange", wakeWhenVisible);
+      browser.storage.onChanged.removeListener(onGamingSettingsChanged);
       video?.dispose();
       region.dispose();
     },

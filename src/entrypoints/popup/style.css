@@ -167,6 +167,44 @@ select {
   padding: 0;
 }
 
+.popup-fields > .gaming-mode-field,
+.popup-fields > .gaming-options {
+  grid-column: 1 / -1;
+}
+
+.gaming-mode-field {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.gaming-mode-field > legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.gaming-options {
+  display: grid;
+  gap: 12px;
+}
+
+.gaming-options[hidden] {
+  display: none;
+}
+
+.gaming-options .field {
+  grid-template-columns: 1fr auto;
+  grid-area: auto;
+}
+
+.gaming-options .field span {
+  grid-column: 1 / -1;
+}
+
+.gaming-options input[type="range"] {
+  width: 100%;
+}
+
 .segmented {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -52,6 +52,18 @@
             </label>
           </div>
         </fieldset>
+        <fieldset class="field gaming-mode-field">
+          <legend data-i18n="gamingModeLabel"></legend>
+          <div class="segmented">
+            <label><input type="radio" name="gaming-mode" value="normal" checked /><span data-i18n="gamingModeNormal"></span></label>
+            <label><input type="radio" name="gaming-mode" value="gaming" /><span data-i18n="gamingModeGaming"></span></label>
+          </div>
+        </fieldset>
+        <div id="gaming-options" class="gaming-options" hidden>
+          <label class="field"><span data-i18n="gamingFontSize"></span><input id="gaming-font-size" type="range" min="18" max="64" step="2" /><output id="gaming-font-size-value"></output></label>
+          <label class="field"><span data-i18n="gamingPosition"></span><input id="gaming-bottom" type="range" min="0" max="40" step="1" /><output id="gaming-bottom-value"></output></label>
+          <label class="field"><span data-i18n="gamingTransparency"></span><input id="gaming-opacity" type="range" min="20" max="100" step="5" /><output id="gaming-opacity-value"></output></label>
+        </div>
       </fieldset>
 
       <p id="message" class="popup-message" role="status" hidden></p>

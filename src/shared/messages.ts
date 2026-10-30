@@ -151,6 +151,13 @@ export type RuntimeMessage =
        * Absent until the session has learned how thick its text is. */
       minLineThickness?: number;
     }
+  // Background -> content: the screenshot has been taken. Gaming subtitles
+  // can reappear while OCR runs without being included in that screenshot.
+  | {
+      type: "LIVE_CAPTURE_COMPLETE";
+      requestId: string;
+      sessionId: string;
+    }
   // Content -> background: read the text in a live region the content script
   // took from a video's own frame. The extension's panel is never in it, so
   // nothing is masked. The response resolves to a LiveImageResponse.

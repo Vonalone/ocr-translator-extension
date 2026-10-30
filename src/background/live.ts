@@ -82,6 +82,7 @@ export async function handleLiveFrameRequest(
   message: Extract<RuntimeMessage, { type: "LIVE_FRAME_REQUEST" }>,
   sender: LiveSender | undefined,
   signal: AbortSignal,
+  onCaptured?: () => void,
 ): Promise<LiveFrameResponse> {
   // A screenshot is of whichever tab is active in the window. Once the user
   // switches tabs, that is no longer the page this region belongs to.
@@ -102,6 +103,7 @@ export async function handleLiveFrameRequest(
     tabId: sender.id,
     windowId: sender.windowId,
   });
+  onCaptured?.();
   signal.throwIfAborted();
   if (!frame) {
     return { status: "hidden" };

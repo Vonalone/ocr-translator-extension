@@ -592,5 +592,23 @@
   },
   "errorDeepLUnreachable": {
     "message": "DeepLに接続できませんでした。接続を確認して再試行してください。"
+  },
+  "gamingModeLabel": {
+    "message": "ライブ字幕モード"
+  },
+  "gamingModeNormal": {
+    "message": "通常モード"
+  },
+  "gamingModeGaming": {
+    "message": "ゲーム字幕モード"
+  },
+  "gamingFontSize": {
+    "message": "字幕の文字サイズ"
+  },
+  "gamingPosition": {
+    "message": "画面下からの位置"
+  },
+  "gamingTransparency": {
+    "message": "字幕の不透明度"
   }
 }

@@ -1,5 +1,9 @@
 import { t } from "@/shared/i18n";
-import { LIVE_TEXT_SCALES, type LiveTextScale } from "@/shared/storage";
+import {
+  LIVE_TEXT_SCALES,
+  type GamingSubtitleSettings,
+  type LiveTextScale,
+} from "@/shared/storage";
 import type { Rect } from "@/shared/types";
 import {
   ARROW_DOWN_ICON,
@@ -50,6 +54,9 @@ export interface LivePanel {
   /** Whether the region is read from screenshots. The panel then warns while
    * it covers the region, since what it covers is not read. */
   setReadsScreen(readsScreen: boolean): void;
+  setGamingSettings(settings: GamingSubtitleSettings): void;
+  /** Returns whether the gaming subtitle needed hiding. */
+  setCaptureHidden(hidden: boolean): boolean;
   dispose(): void;
 }
 
@@ -83,12 +90,19 @@ export function showLivePanel(
   initialRegion: Rect,
   callbacks: LivePanelCallbacks,
   initialTextScale: LiveTextScale,
+  initialGamingSettings: GamingSubtitleSettings = {
+    enabled: false,
+    fontSize: 32,
+    bottom: 8,
+    opacity: 1,
+  },
 ): LivePanel {
   let state: LiveState = { status: "starting", lines: [] };
   let region = initialRegion;
   let showOriginal = false;
   let textScale = initialTextScale;
   let readsScreen = true;
+  let gamingSettings = initialGamingSettings;
   // One view per line in `state.lines`, in the same order.
   const views: LineView[] = [];
   // Where the user moved or resized the panel to. Until then it goes beside
@@ -104,6 +118,10 @@ export function showLivePanel(
   panel.className = "ocr-translate-live";
   panel.setAttribute("role", "region");
   panel.setAttribute("aria-label", t("popupLiveTranslation"));
+  const subtitle = document.createElement("p");
+  subtitle.className = "ocr-translate-gaming-subtitle";
+  subtitle.dir = "rtl";
+  subtitle.setAttribute("aria-live", "polite");
 
   const dot = document.createElement("span");
   dot.className = "ocr-translate-live-status";
@@ -241,6 +259,7 @@ export function showLivePanel(
     lineList,
     footer,
     ...resizeHandles.map(({ handle }) => handle),
+    subtitle,
   );
   root.append(frame, panel);
 
@@ -332,6 +351,15 @@ export function showLivePanel(
   }
 
   function position(): void {
+    if (gamingSettings.enabled) {
+      panel.style.left = "10%";
+      panel.style.top = "auto";
+      panel.style.width = "80%";
+      panel.style.height = "auto";
+      panel.style.bottom = `${gamingSettings.bottom}%`;
+      return;
+    }
+    panel.style.bottom = "auto";
     // A window that shrinks squeezes the panel only for as long as it is
     // small. A region that scrolls out of view leaves the panel at the edge.
     const box = clampPanelBox(
@@ -348,6 +376,7 @@ export function showLivePanel(
   }
 
   function mask(): Rect | undefined {
+    if (gamingSettings.enabled) return undefined;
     const box = panel.getBoundingClientRect();
     const covered = growRect(
       { x: box.left, y: box.top, width: box.width, height: box.height },
@@ -445,6 +474,13 @@ export function showLivePanel(
 
   const onResize = (): void => keepingScroll(position);
   window.addEventListener("resize", onResize);
+  panel.classList.toggle("is-gaming", gamingSettings.enabled);
+  frame.hidden = gamingSettings.enabled;
+  panel.style.setProperty(
+    "--ocr-gaming-font-size",
+    `${gamingSettings.fontSize}px`,
+  );
+  panel.style.setProperty("--ocr-gaming-opacity", String(gamingSettings.opacity));
   position();
   drawTextScale();
   draw();
@@ -453,6 +489,10 @@ export function showLivePanel(
     const { status } = state;
     panel.dataset.status = status;
     frame.dataset.status = status;
+    subtitle.textContent =
+      state.targetLang === "ar" && state.line?.state === "ready"
+        ? state.line.translation ?? ""
+        : "";
 
     const paused = status === "paused";
     setButton(
@@ -546,6 +586,22 @@ export function showLivePanel(
         readsScreen = next;
         keepingScroll(drawCoverWarning);
       }
+    },
+
+    setGamingSettings(next) {
+      gamingSettings = next;
+      if (!next.enabled) panel.style.visibility = "";
+      panel.classList.toggle("is-gaming", next.enabled);
+      frame.hidden = next.enabled;
+      panel.style.setProperty("--ocr-gaming-font-size", `${next.fontSize}px`);
+      panel.style.setProperty("--ocr-gaming-opacity", String(next.opacity));
+      position();
+      draw();
+    },
+
+    setCaptureHidden(hidden) {
+      panel.style.visibility = hidden && gamingSettings.enabled ? "hidden" : "";
+      return gamingSettings.enabled;
     },
 
     dispose() {

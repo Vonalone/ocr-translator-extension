@@ -112,6 +112,58 @@ export async function setLiveTextScale(scale: LiveTextScale): Promise<void> {
   await browser.storage.local.set({ [LIVE_TEXT_SCALE_KEY]: scale });
 }
 
+export interface GamingSubtitleSettings {
+  enabled: boolean;
+  fontSize: number;
+  bottom: number;
+  opacity: number;
+  normalTargetLang?: string;
+}
+
+export const defaultGamingSubtitleSettings: GamingSubtitleSettings = {
+  enabled: false,
+  fontSize: 32,
+  bottom: 8,
+  opacity: 1,
+};
+
+const GAMING_SUBTITLES_KEY = "gamingSubtitles";
+
+export async function getGamingSubtitleSettings(): Promise<GamingSubtitleSettings> {
+  try {
+    const stored = (await browser.storage.local.get(GAMING_SUBTITLES_KEY))[
+      GAMING_SUBTITLES_KEY
+    ];
+    const value: Partial<GamingSubtitleSettings> =
+      stored && typeof stored === "object"
+        ? (stored as Partial<GamingSubtitleSettings>)
+        : {};
+    const defaults = defaultGamingSubtitleSettings;
+    const bounded = (input: unknown, min: number, max: number, fallback: number) =>
+      typeof input === "number" && Number.isFinite(input)
+        ? Math.max(min, Math.min(max, input))
+        : fallback;
+    return {
+      enabled: value.enabled === true,
+      fontSize: bounded(value.fontSize, 18, 64, defaults.fontSize),
+      bottom: bounded(value.bottom, 0, 40, defaults.bottom),
+      opacity: bounded(value.opacity, 0.2, 1, defaults.opacity),
+      normalTargetLang:
+        typeof value.normalTargetLang === "string"
+          ? value.normalTargetLang
+          : undefined,
+    };
+  } catch {
+    return { ...defaultGamingSubtitleSettings };
+  }
+}
+
+export async function setGamingSubtitleSettings(
+  settings: GamingSubtitleSettings,
+): Promise<void> {
+  await browser.storage.local.set({ [GAMING_SUBTITLES_KEY]: settings });
+}
+
 export const defaultSettings: Settings = {
   ocr: {
     providerId: "paddle",

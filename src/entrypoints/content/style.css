@@ -1854,6 +1854,44 @@
 
 /* Live translation */
 
+.ocr-translate-gaming-subtitle {
+  display: none;
+}
+
+.ocr-translate-live.is-gaming {
+  display: block;
+  min-height: 0;
+  max-height: 45vh;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  pointer-events: none;
+  animation: none;
+}
+
+.ocr-translate-live.is-gaming > :not(.ocr-translate-gaming-subtitle) {
+  display: none;
+}
+
+.ocr-translate-live.is-gaming .ocr-translate-gaming-subtitle {
+  display: block;
+  margin: 0;
+  color: #fff;
+  opacity: var(--ocr-gaming-opacity, 1);
+  font-family: Arial, "Noto Naskh Arabic", sans-serif;
+  font-size: var(--ocr-gaming-font-size, 32px);
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  -webkit-text-stroke: 1px #000;
+  text-shadow: 0 2px 3px #000, 2px 0 3px #000, -2px 0 3px #000, 0 -2px 3px #000;
+}
+
 /* Both pieces sit outside the monitored region, never over it: the region is
    read off the screen, so anything drawn on it would be read back. */
 .ocr-translate-live-region {

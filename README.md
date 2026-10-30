@@ -53,6 +53,10 @@ Live translation can be used for on-screen text that keeps changing, like subtit
 2. Drag to select the area containing the text.
 3. The translation appears in a small panel next to the selected area.
 
+### Gaming Subtitle Mode
+
+For cloud games such as Boosteroid or games such as Red Dead Redemption 2, choose **Gaming subtitle mode** in the popup before starting Live translation. The target language switches to Arabic, and only the current translation appears at the bottom center of the game. The popup sliders adjust subtitle font size, distance from the bottom, and opacity. Switch back to **Normal mode** to restore the live panel and your previous target language. Select the area where the game's original subtitles appear; OCR continues to read it as the text changes.
+
 Tips:
 
 - Select the area while subtitles are visible. The extension learns the subtitle size from the first capture and ignores much smaller text.

@@ -90,6 +90,19 @@ function setup(options: {
 const signal = () => new AbortController().signal;
 
 describe("handleLiveFrameRequest", () => {
+  it("releases the subtitle as soon as the screenshot is captured", async () => {
+    const { dependencies, recognize, sessions } = setup({});
+    const onCaptured = vi.fn();
+    recognize.mockImplementation(async () => {
+      expect(onCaptured).toHaveBeenCalledOnce();
+      return { text: "Hello" };
+    });
+    await handleLiveFrameRequest(
+      dependencies, sessions, frameMessage(), visibleTab, signal(), onCaptured,
+    );
+    expect(onCaptured).toHaveBeenCalledOnce();
+  });
+
   it("reuses the first detected model through changed and empty frames", async () => {
     const { dependencies, recognize, sessions } = setup({
       frames: [frameOf(10), frameOf(200), frameOf(10), frameOf(200)],

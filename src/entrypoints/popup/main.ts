@@ -25,8 +25,11 @@ import { isFirefoxLocalFileAccessDenied } from "@/shared/local-file-access";
 import {
   createSettingsRepository,
   getDisplayMode,
+  getGamingSubtitleSettings,
   setDisplayMode,
+  setGamingSubtitleSettings,
   type DisplayMode,
+  type GamingSubtitleSettings,
 } from "@/shared/storage";
 import type { Settings } from "@/shared/types";
 import {
@@ -46,6 +49,8 @@ import "./style.css";
 
 const settingsRepository = createSettingsRepository();
 let currentSettings: Settings;
+let gamingSettings: GamingSubtitleSettings;
+let normalTargetLanguage = "en";
 let pendingSave: Promise<void> = Promise.resolve();
 
 void initPopup();
@@ -68,12 +73,16 @@ async function initPopup(): Promise<void> {
   void showShortcutHint(elements);
 
   try {
-    const [settings, displayMode, [activeTab]] = await Promise.all([
+    const [settings, displayMode, gaming, [activeTab]] = await Promise.all([
       settingsRepository.get(),
       getDisplayMode(),
+      getGamingSubtitleSettings(),
       browser.tabs.query({ active: true, currentWindow: true }),
     ]);
     currentSettings = settings;
+    gamingSettings = gaming;
+    normalTargetLanguage =
+      gaming.normalTargetLang ?? settings.translation.targetLang;
 
     fillLanguageSelect(
       elements.sourceLanguage,
@@ -100,6 +109,64 @@ async function initPopup(): Promise<void> {
     });
     for (const input of elements.displayModeInputs) {
       input.checked = input.value === displayMode;
+    }
+    const gamingInputs = document.querySelectorAll<HTMLInputElement>(
+      'input[name="gaming-mode"]',
+    );
+    for (const input of gamingInputs) {
+      input.checked = input.value === (gaming.enabled ? "gaming" : "normal");
+    }
+    elements.gamingFontSize.value = String(gaming.fontSize);
+    elements.gamingBottom.value = String(gaming.bottom);
+    elements.gamingOpacity.value = String(Math.round(gaming.opacity * 100));
+    const updateGamingControls = (): void => {
+      const enabled =
+        document.querySelector<HTMLInputElement>(
+          'input[name="gaming-mode"]:checked',
+        )?.value === "gaming";
+      elements.gamingOptions.hidden = !enabled;
+      gamingSettings = {
+        enabled,
+        fontSize: Number(elements.gamingFontSize.value),
+        bottom: Number(elements.gamingBottom.value),
+        opacity: Number(elements.gamingOpacity.value) / 100,
+        normalTargetLang: normalTargetLanguage,
+      };
+      elements.gamingFontSizeValue.textContent = `${gamingSettings.fontSize}px`;
+      elements.gamingBottomValue.textContent = `${gamingSettings.bottom}%`;
+      elements.gamingOpacityValue.textContent = `${Math.round(gamingSettings.opacity * 100)}%`;
+      if (enabled) {
+        if (elements.targetLanguage.value !== "ar") {
+          normalTargetLanguage = elements.targetLanguage.value;
+        }
+        elements.targetLanguage.value = "ar";
+      } else if (
+        elements.targetLanguage.value === "ar" && normalTargetLanguage !== "ar"
+      ) {
+        elements.targetLanguage.value = resolveTargetLanguage(
+          normalTargetLanguage,
+          translationTargetLanguages(elements.translationProvider.value),
+        );
+      }
+      elements.targetLanguage.disabled = enabled;
+      gamingSettings.normalTargetLang = normalTargetLanguage;
+    };
+    updateGamingControls();
+    for (const input of gamingInputs) {
+      input.addEventListener("change", () => {
+        updateGamingControls();
+        elements.controls.dispatchEvent(new Event("change"));
+      });
+    }
+    for (const input of [
+      elements.gamingFontSize,
+      elements.gamingBottom,
+      elements.gamingOpacity,
+    ]) {
+      input.addEventListener("input", () => {
+        updateGamingControls();
+        queuePopupSave(elements);
+      });
     }
 
     elements.controls.addEventListener("change", () => {
@@ -136,6 +203,10 @@ async function initPopup(): Promise<void> {
           providerId: elements.translationProvider.value,
         },
       };
+      if (!gamingSettings.enabled) {
+        normalTargetLanguage = currentSettings.translation.targetLang;
+        gamingSettings.normalTargetLang = normalTargetLanguage;
+      }
       queuePopupSave(elements);
     });
 
@@ -259,6 +330,7 @@ function queuePopupSave(elements: PopupElements): void {
   pendingSave = pendingSave.catch(() => {}).then(async () => {
     await settingsRepository.set(nextSettings);
     await setDisplayMode(nextDisplayMode);
+    await setGamingSubtitleSettings(gamingSettings);
   });
   void pendingSave.then(clearSaveError, (error: unknown) => {
     console.error(
@@ -406,6 +478,13 @@ interface PopupElements {
   ocrProvider: HTMLSelectElement;
   translationProvider: HTMLSelectElement;
   displayModeInputs: HTMLInputElement[];
+  gamingOptions: HTMLDivElement;
+  gamingFontSize: HTMLInputElement;
+  gamingBottom: HTMLInputElement;
+  gamingOpacity: HTMLInputElement;
+  gamingFontSizeValue: HTMLOutputElement;
+  gamingBottomValue: HTMLOutputElement;
+  gamingOpacityValue: HTMLOutputElement;
   openSettings: HTMLButtonElement;
   selectArea: HTMLButtonElement;
   liveTranslate: HTMLButtonElement;
@@ -429,6 +508,13 @@ function getPopupElements(): PopupElements {
         'input[name="display-mode"]',
       ),
     ),
+    gamingOptions: requiredElement("gaming-options", HTMLDivElement),
+    gamingFontSize: requiredElement("gaming-font-size", HTMLInputElement),
+    gamingBottom: requiredElement("gaming-bottom", HTMLInputElement),
+    gamingOpacity: requiredElement("gaming-opacity", HTMLInputElement),
+    gamingFontSizeValue: requiredElement("gaming-font-size-value", HTMLOutputElement),
+    gamingBottomValue: requiredElement("gaming-bottom-value", HTMLOutputElement),
+    gamingOpacityValue: requiredElement("gaming-opacity-value", HTMLOutputElement),
     openSettings: requiredElement("open-settings", HTMLButtonElement),
     selectArea: requiredElement("select-area", HTMLButtonElement),
     liveTranslate: requiredElement("live-translate", HTMLButtonElement),

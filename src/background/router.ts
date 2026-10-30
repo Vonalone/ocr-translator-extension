@@ -152,6 +152,21 @@ export function startRouter(
             message,
             messageSender?.tab,
             signal,
+            () => {
+              if (typeof tabId === "number" && browser.tabs?.sendMessage) {
+                void browser.tabs
+                  .sendMessage(
+                    tabId,
+                    {
+                      type: "LIVE_CAPTURE_COMPLETE",
+                      requestId: message.requestId,
+                      sessionId: message.sessionId,
+                    },
+                    { frameId: messageSender?.frameId ?? 0 },
+                  )
+                  .catch(() => {});
+              }
+            },
           ),
         ),
       );

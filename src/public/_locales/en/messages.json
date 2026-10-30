@@ -678,5 +678,23 @@
   },
   "errorDeepLUnreachable": {
     "message": "Could not connect to DeepL. Check your connection and try again."
+  },
+  "gamingModeLabel": {
+    "message": "Live subtitle mode"
+  },
+  "gamingModeNormal": {
+    "message": "Normal mode"
+  },
+  "gamingModeGaming": {
+    "message": "Gaming subtitle mode"
+  },
+  "gamingFontSize": {
+    "message": "Subtitle font size"
+  },
+  "gamingPosition": {
+    "message": "Position above bottom"
+  },
+  "gamingTransparency": {
+    "message": "Subtitle opacity"
   }
 }
