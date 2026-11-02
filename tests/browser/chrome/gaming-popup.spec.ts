@@ -22,6 +22,18 @@ test("Gaming Subtitle Mode saves Arabic and restores the normal target", async (
     const popup = await context.newPage();
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
 
+    const layout = await popup.evaluate(() => {
+      const box = (selector: string) =>
+        document.querySelector(selector)!.getBoundingClientRect();
+      return {
+        languageBottom: box("#target-language").bottom,
+        displayBottom: box(".display-mode-field").bottom,
+        gamingTop: box(".gaming-mode-field").top,
+      };
+    });
+    expect(layout.gamingTop).toBeGreaterThan(layout.languageBottom);
+    expect(layout.gamingTop).toBeGreaterThanOrEqual(layout.displayBottom);
+
     await popup.getByRole("radio", { name: "Gaming subtitle mode" }).check();
     await expect(popup.locator("#target-language")).toHaveValue("ar");
     await expect(popup.locator("#target-language")).toBeDisabled();

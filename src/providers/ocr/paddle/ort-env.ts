@@ -101,7 +101,7 @@ async function withGpuPolling<T>(run: () => Promise<T>): Promise<T> {
     return run();
   }
   const timer = setInterval(
-    () => device.queue.submit([]),
+    () => (device as { queue: { submit(commands: never[]): void } }).queue.submit([]),
     GPU_POLL_INTERVAL_MS,
   );
   try {

@@ -5,6 +5,9 @@ test-results/
 # WXT generated output and types
 .output/
 .wxt/
+desktop/node_modules/
+desktop/dist/
+desktop/release/
 
 # Python virtualenv for scripts/quantize-models.py
 scripts/.venv/

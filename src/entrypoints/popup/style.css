@@ -138,23 +138,22 @@ select {
   font-weight: 500;
 }
 
-.field:nth-of-type(1) {
+.popup-fields > label.field:nth-of-type(1) {
   grid-area: 1 / 1;
 }
 
-.field:nth-of-type(2) {
+.popup-fields > label.field:nth-of-type(2) {
   grid-area: 1 / 2;
 }
 
-.field:nth-of-type(-n + 2) select {
+.popup-fields > label.field:nth-of-type(-n + 2) select {
   width: calc(100% - 5px);
 }
 
-.field:nth-of-type(2) select {
+.popup-fields > label.field:nth-of-type(2) select {
   justify-self: end;
 }
 
-/* The first fieldset here, so it also matches .field:nth-of-type(1). */
 .popup-fields > .display-mode-field {
   grid-area: auto / 1 / auto / -1;
   margin: 0;
