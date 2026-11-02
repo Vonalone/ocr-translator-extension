@@ -545,7 +545,11 @@ function startLive(
     panel.setReadsScreen(!video);
   };
   follow(rect);
+  let gamingModeEnabled = gamingSettings.enabled;
   const session = new LiveSession({
+    get idleIntervalMs() {
+      return gamingModeEnabled ? 650 : undefined;
+    },
     readFrame: async (requestId, minLineThickness) => {
       const read = await video?.read(requestId, minLineThickness);
       panel.setReadsScreen(!read);
@@ -608,9 +612,11 @@ function startLive(
     changes: Record<string, { newValue?: unknown }>,
   ): void => {
     if (changes.gamingSubtitles) {
-      void getGamingSubtitleSettings().then((next) =>
-        panel.setGamingSettings(next),
-      );
+      void getGamingSubtitleSettings().then((next) => {
+        gamingModeEnabled = next.enabled;
+        panel.setGamingSettings(next);
+        session.wake();
+      });
     }
   };
   browser.storage.onChanged.addListener(onGamingSettingsChanged);

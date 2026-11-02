@@ -42,6 +42,9 @@ export interface LiveState {
 }
 
 export interface LiveSessionDeps {
+  /** Optional capture cadence. The extension keeps its existing defaults. */
+  readIntervalMs?: number;
+  idleIntervalMs?: number;
   /** Capture the region and read its text. Lines thinner than
    * `minLineThickness`, as a share of the region's height, are left out. */
   readFrame(
@@ -218,7 +221,7 @@ export class LiveSession {
   private async run(generation: number): Promise<void> {
     while (this.isCurrent(generation)) {
       if (this.paused || !this.deps.isVisible()) {
-        await this.sleep(IDLE_INTERVAL_MS);
+        await this.sleep(this.deps.idleIntervalMs ?? IDLE_INTERVAL_MS);
         continue;
       }
 
@@ -232,8 +235,8 @@ export class LiveSession {
         outcome === "failed"
           ? RETRY_INTERVAL_MS
           : this.unchangedReads >= UNCHANGED_READS_BEFORE_IDLE
-            ? IDLE_INTERVAL_MS
-            : READ_INTERVAL_MS;
+            ? (this.deps.idleIntervalMs ?? IDLE_INTERVAL_MS)
+            : (this.deps.readIntervalMs ?? READ_INTERVAL_MS);
       await this.sleep(Math.max(0, interval - (this.deps.now() - startedAt)));
     }
   }

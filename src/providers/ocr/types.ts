@@ -31,7 +31,7 @@ export interface OcrProvider {
 }
 
 export interface OcrInput {
-  image: Blob | ImageData;
+  image: Blob;
   sourceLang?: LangCode | "auto";
   /** Reuse a previously selected recognizer without script detection. */
   modelId?: string;

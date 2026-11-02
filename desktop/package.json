@@ -1,7 +1,7 @@
 {
   "name": "screen-ocr-translator-desktop",
   "productName": "Screen OCR Translator Desktop",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "private": true,
   "license": "MPL-2.0",
   "main": "dist/main.cjs",
@@ -37,7 +37,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },

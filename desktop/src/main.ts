@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, net, protocol, screen } from "electron";
+import { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, net, protocol, screen, shell } from "electron";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,6 +9,8 @@ import { translateText } from "../../src/background/pipeline";
 import type { TranslationContextLine } from "../../src/shared/types";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./settings";
 import type { DesktopSettings } from "./bridge";
+import { captureRegion } from "./capture-region";
+import { createFileLog } from "./file-log";
 
 protocol.registerSchemesAsPrivileged([{
   scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
@@ -21,6 +23,16 @@ let subtitle = "";
 let overlayVisible = true;
 const rendererRoot = resolve(__dirname, "renderer");
 const settingsFile = () => join(app.getPath("userData"), "settings.json");
+const log = createFileLog(join(app.getPath("userData"), "logs", "desktop.log"), () => [
+  settings.deeplKey, settings.llmKey, settings.llmBaseUrl,
+]);
+const errorMessage = (error: unknown) => error instanceof Error ? error.stack ?? error.message : String(error);
+const logError = (event: string, error: unknown) => void log.write("ERROR", event, errorMessage(error));
+
+process.on("uncaughtException", (error) => {
+  void log.write("ERROR", "main:uncaught", errorMessage(error)).finally(() => app.exit(1));
+});
+process.on("unhandledRejection", (error) => logError("main:unhandled-rejection", error));
 
 async function loadSettings() {
   try { settings = normalizeSettings(JSON.parse(await readFile(settingsFile(), "utf8"))); }
@@ -41,7 +53,8 @@ function createWindows() {
     title: "Screen OCR Translator Desktop",
     webPreferences: { preload, contextIsolation: true, nodeIntegration: false, sandbox: false },
   });
-  control.loadURL("app://desktop/index.html");
+  void control.loadURL("app://desktop/index.html").catch((error) => logError("control:load", error));
+  control.webContents.on("render-process-gone", (_event, details) => logError("control:renderer-exit", details.reason));
   control.on("closed", () => app.quit());
 
   overlay = new BrowserWindow({
@@ -53,7 +66,8 @@ function createWindows() {
   overlay.setAlwaysOnTop(true, "screen-saver");
   overlay.setIgnoreMouseEvents(true, { forward: true });
   if (process.platform === "win32") overlay.setContentProtection(true);
-  overlay.loadURL("app://desktop/overlay.html");
+  void overlay.loadURL("app://desktop/overlay.html").catch((error) => logError("overlay:load", error));
+  overlay.webContents.on("render-process-gone", (_event, details) => logError("overlay:renderer-exit", details.reason));
   overlay.webContents.on("did-finish-load", () => { updateOverlay(); overlay.showInactive(); });
   screen.on("display-metrics-changed", updateOverlay);
   screen.on("display-added", updateOverlay);
@@ -65,6 +79,17 @@ function validSender(event: Electron.IpcMainInvokeEvent) {
 }
 
 function registerIpc() {
+  ipcMain.handle("diagnostics:error", async (event, stage: unknown, message: unknown) => {
+    validSender(event);
+    if (typeof stage !== "string" || typeof message !== "string") return;
+    await log.write("ERROR", `renderer:${stage}`, message);
+  });
+  ipcMain.handle("diagnostics:open", async (event) => {
+    validSender(event);
+    await log.write("INFO", "logs-opened");
+    shell.showItemInFolder(log.path);
+    return log.path;
+  });
   ipcMain.handle("settings:get", (event) => { validSender(event); return settings; });
   ipcMain.handle("settings:save", async (event, value: unknown) => {
     validSender(event);
@@ -94,7 +119,8 @@ function registerIpc() {
     if (!source) throw new Error("Selected window is unavailable. Refresh the window list.");
     if (source.name === "Screen OCR Translator Desktop") throw new Error("Select the Boosteroid window.");
     if (source.thumbnail.isEmpty()) throw new Error("The selected window produced an empty capture.");
-    return source.thumbnail.toPNG();
+    const { width, height } = source.thumbnail.getSize();
+    return source.thumbnail.crop(captureRegion(width, height, settings)).toPNG();
   });
   ipcMain.handle("text:translate", async (event, text: unknown, context: unknown) => {
     validSender(event);
@@ -104,7 +130,16 @@ function registerIpc() {
       : settings.provider === "openai"
         ? createOpenAiTranslationProvider({ llm: { baseUrl: settings.llmBaseUrl, apiKey: settings.llmKey, model: settings.llmModel } })
         : createGoogleTranslationProvider();
-    return translateText({ text, sourceLang: "en", targetLang: "ar", context: (context as TranslationContextLine[]).slice(-3), translationProvider: provider });
+    try {
+      const result = await translateText({ text, sourceLang: "en", targetLang: "ar", context: (context as TranslationContextLine[]).slice(-3), translationProvider: provider });
+      if (result.translationStatus.state === "failed") {
+        logError(`translation:${settings.provider}`, result.translationStatus.reason);
+      }
+      return result;
+    } catch (error) {
+      logError(`translation:${settings.provider}`, error);
+      throw error;
+    }
   });
   ipcMain.handle("subtitle:set", (event, value: unknown) => {
     validSender(event);
@@ -130,6 +165,7 @@ function registerShortcuts() {
 }
 
 app.whenReady().then(async () => {
+  await log.write("INFO", "app-start", `version=${app.getVersion()} platform=${process.platform} arch=${process.arch}`);
   protocol.handle("app", (request) => {
     const url = new URL(request.url);
     if (url.hostname !== "desktop") return new Response("Not found", { status: 404 });
@@ -141,6 +177,6 @@ app.whenReady().then(async () => {
   registerIpc();
   createWindows();
   registerShortcuts();
-});
+}).catch((error) => logError("app-start-failed", error));
 
 app.on("will-quit", () => globalShortcut.unregisterAll());

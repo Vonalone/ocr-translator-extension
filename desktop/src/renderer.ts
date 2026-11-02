@@ -21,6 +21,12 @@ let lastText = "";
 let lastSubtitle = "";
 
 function setStatus(message: string) { status.textContent = message; }
+function reportError(stage: string, error: unknown) {
+  const message = error instanceof Error ? error.stack ?? error.message : String(error);
+  void window.desktop?.logError(stage, message).catch(() => {});
+}
+window.addEventListener("error", (event) => reportError("window", event.error ?? event.message));
+window.addEventListener("unhandledrejection", (event) => reportError("promise", event.reason));
 function showProviderOptions() {
   byId("deepl-options").style.display = provider.value === "deepl" ? "block" : "none";
   byId("llm-options").style.display = provider.value === "openai" ? "block" : "none";
@@ -63,10 +69,15 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
-    settings = await window.desktop.saveSettings(readForm());
-    fillForm();
-    lastSignature = undefined;
-    session?.regionChanged(1);
+    try {
+      settings = await window.desktop.saveSettings(readForm());
+      fillForm();
+      lastSignature = undefined;
+      session?.regionChanged(1);
+    } catch (error) {
+      reportError("settings-save", error);
+      setStatus(`Could not save settings: ${String(error)}`);
+    }
   }, 250);
   for (const key of ["fontSize", "opacity", "bottom", "horizontal", "cropTop", "cropHeight", "cropWidth"]) {
     const input = byId<HTMLInputElement>(key);
@@ -96,24 +107,32 @@ async function refreshDisplays() {
 
 async function readFrame(minLineThickness: number | undefined) {
   if (!source.value) return { status: "hidden" as const };
-  const png = await window.desktop.capture(source.value);
-  const bitmap = await createImageBitmap(new Blob([new Uint8Array(png)], { type: "image/png" }));
+  const png = await window.desktop.capture(source.value).catch((error) => {
+    reportError("capture", error);
+    throw error;
+  });
+  const image = new Blob([new Uint8Array(png)], { type: "image/png" });
+  const bitmap = await createImageBitmap(image).catch((error) => {
+    reportError("image-decode", error);
+    throw error;
+  });
   try {
-    const width = Math.max(1, Math.round(bitmap.width * settings.cropWidth / 100));
-    const height = Math.max(1, Math.round(bitmap.height * Math.min(settings.cropHeight, 100 - settings.cropTop) / 100));
-    const x = Math.round((bitmap.width - width) / 2);
-    const y = Math.round(bitmap.height * settings.cropTop / 100);
+    const width = bitmap.width;
+    const height = bitmap.height;
     const canvas = document.createElement("canvas");
     canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-    ctx.drawImage(bitmap, x, y, width, height, 0, 0, width, height);
+    ctx.drawImage(bitmap, 0, 0);
     const pixels = ctx.getImageData(0, 0, width, height);
     const signature = createFrameSignature(pixels);
     if (lastSignature && framesMatch(lastSignature, signature)) {
       return { status: "ok" as const, text: lastText, unchanged: true };
     }
     lastSignature = signature;
-    const result = await ocr.recognize({ image: pixels, sourceLang: "en", grouping: "single", minLineThickness: minLineThickness === undefined ? undefined : minLineThickness * height });
+    const result = await ocr.recognize({ image, sourceLang: "en", grouping: "single", minLineThickness: minLineThickness === undefined ? undefined : minLineThickness * height }).catch((error) => {
+      reportError("ocr", error);
+      throw error;
+    });
     lastText = result.text;
     const lineThickness = result.blocks?.reduce((max, block) => Math.max(max, block.oriented?.rect.height ?? block.bbox.height), 0);
     return { status: "ok" as const, text: result.text, unchanged: false, lineThickness: lineThickness ? lineThickness / height : undefined };
@@ -135,6 +154,8 @@ function start() {
   lastText = "";
   setStatus("Initializing OCR…");
   session = new LiveSession({
+    readIntervalMs: 350,
+    idleIntervalMs: 650,
     readFrame: (_requestId, minThickness) => readFrame(minThickness),
     translate: (_requestId, text, context) => window.desktop.translate(text, context),
     cancel: () => {},
@@ -142,8 +163,9 @@ function start() {
     isVisible: () => true,
     now: () => Date.now(),
     onChange: (state) => {
+      if (state.status === "error") reportError("live-session", state.error);
       setStatus(state.status === "error" ? `Error: ${state.error}` : state.status === "running" ? "Watching Boosteroid subtitles" : state.status);
-      const next = state.line?.state === "ready" ? state.line.translation ?? "" : "";
+      const next = state.status !== "error" && state.line?.state === "ready" ? state.line.translation ?? "" : "";
       if (next !== lastSubtitle) {
         lastSubtitle = next;
         byId("latest").textContent = next;
@@ -162,6 +184,12 @@ async function init() {
   fillForm();
   setStatus("Ready. Select the Boosteroid window and start.");
   byId("refresh").addEventListener("click", () => { void refreshSources(); });
+  byId("openLogs").addEventListener("click", () => {
+    void window.desktop.openLogs().then((path) => setStatus(`Log file: ${path}`)).catch((error) => {
+      reportError("open-logs", error);
+      setStatus(`Could not open logs: ${String(error)}`);
+    });
+  });
   toggle.addEventListener("click", () => session ? stop() : start());
   for (const element of document.querySelectorAll("input,select")) element.addEventListener("input", scheduleSave);
   window.desktop.onShortcut((command) => {
@@ -172,5 +200,16 @@ async function init() {
       scheduleSave();
     }
   });
+  if (ocr.preload) {
+    void ocr.preload().then(() => {
+      if (!session) setStatus("Ready. Select the Boosteroid window and start.");
+    }).catch((error) => {
+      reportError("ocr-initialization", error);
+      setStatus(`OCR initialization failed: ${String(error)}`);
+    });
+  }
 }
-void init().catch((error) => setStatus(`Error: ${String(error)}`));
+void init().catch((error) => {
+  reportError("initialization", error);
+  setStatus(`Error: ${String(error)}`);
+});

@@ -55,7 +55,7 @@ const after = (...texts: string[]): TranslationContextLine[] =>
 
 type Reply = LiveFrameResponse | Error;
 
-function setup(options: { visible?: boolean } = {}) {
+function setup(options: { visible?: boolean; readIntervalMs?: number; idleIntervalMs?: number } = {}) {
   let visible = options.visible ?? true;
   const replies: Reply[] = [];
   const states: LiveState[] = [];
@@ -84,6 +84,8 @@ function setup(options: { visible?: boolean } = {}) {
   const cancel = vi.fn();
 
   const session = new LiveSession({
+    readIntervalMs: options.readIntervalMs,
+    idleIntervalMs: options.idleIntervalMs,
     readFrame,
     translate,
     cancel,
@@ -113,6 +115,22 @@ function setup(options: { visible?: boolean } = {}) {
 const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms);
 
 describe("LiveSession", () => {
+  it("uses a faster cadence when a caller provides one", async () => {
+    const t = setup({ readIntervalMs: 350, idleIntervalMs: 650 });
+    t.replies.push(read("", true));
+
+    t.session.start();
+    await advance(0);
+    expect(t.readFrame).toHaveBeenCalledTimes(1);
+    await advance(350 * 2);
+    expect(t.readFrame).toHaveBeenCalledTimes(3);
+    await advance(649);
+    expect(t.readFrame).toHaveBeenCalledTimes(3);
+    await advance(1);
+    expect(t.readFrame).toHaveBeenCalledTimes(4);
+    t.session.stop();
+  });
+
   it("reads at once and then translates the line it found", async () => {
     const t = setup();
     t.replies.push(read("Good morning."));

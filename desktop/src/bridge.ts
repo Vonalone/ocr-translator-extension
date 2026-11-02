@@ -27,6 +27,8 @@ export interface DesktopBridge {
   capture(sourceId: string): Promise<Uint8Array>;
   translate(text: string, context: TranslationContextLine[]): Promise<LiveTranslationResponse>;
   setSubtitle(text: string): Promise<void>;
+  logError(stage: string, message: string): Promise<void>;
+  openLogs(): Promise<string>;
   onShortcut(callback: (command: string) => void): () => void;
   onOverlay(callback: (state: { text: string; settings: DesktopSettings }) => void): () => void;
 }

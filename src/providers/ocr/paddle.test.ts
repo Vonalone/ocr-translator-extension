@@ -234,6 +234,7 @@ describe("createPaddleOcrProvider", () => {
     const provider = makeProvider(fake);
     const imageData = { width: 1, height: 1 } as unknown as ImageData;
     await expect(
+      // @ts-expect-error Exercise the runtime guard with unsupported input.
       provider.recognize({ image: imageData }),
     ).rejects.toThrow(/Blob/);
   });
